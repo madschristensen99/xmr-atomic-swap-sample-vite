@@ -1,15 +1,19 @@
 {
-  "name": "vite-sample-app",
+  "name": "xmr-eth-atomic-swap-ui",
   "private": true,
   "scripts": {
     "build": "vite build && vite preview --port 8080",
     "dev": "vite"
   },
   "dependencies": {
-    "monero-ts": "^0.11.4"
+    "monero-ts": "^0.11.4",
+    "ethers": "^6.11.1",
+    "axios": "^1.6.7"
   },
   "devDependencies": {
     "vite": "^5.2.9",
-    "vite-plugin-node-polyfills": "^0.21.0"
+    "vite-plugin-node-polyfills": "^0.21.0",
+    "typescript": "^5.4.2",
+    "@types/node": "^20.11.24"
   }
 }
