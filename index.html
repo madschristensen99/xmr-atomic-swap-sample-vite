@@ -400,8 +400,31 @@
         }
 
         .swap-info p span:last-child {
-            font-weight: 700;
-            color: var(--dark);
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .exchange-rate-container .rate-display {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+        }
+        
+        .price-indicator {
+            display: inline-flex;
+            margin-left: 8px;
+            font-size: 14px;
+            color: #4ECDC4;
+            opacity: 0.7;
+        }
+        
+        .price-indicator.updating {
+            animation: spin 1s infinite linear;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
         .btn {
@@ -755,9 +778,12 @@
                 </div>
 
                 <div class="swap-info">
-                    <p>
+                    <p class="exchange-rate-container">
                         <span>Exchange Rate</span>
-                        <span id="exchange-rate">1 USDC ≈ 0.00476 XMR</span>
+                        <span class="rate-display">
+                            <span id="exchange-rate">1 USDC ≈ 0.00476 XMR</span>
+                            <span id="price-indicator" class="price-indicator">⟳</span>
+                        </span>
                     </p>
                     <p>
                         <span>Network Fee</span>
