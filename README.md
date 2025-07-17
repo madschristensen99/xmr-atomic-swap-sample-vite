@@ -7,6 +7,7 @@ This project is a frontend application for the XMR-USDC atomic swap protocol, fe
 ## Features
 
 - Modern swap interface for USDC ↔ XMR exchanges with Fun Gerbil branding
+- Live XMR/USDC price feed via CoinGecko API with auto-refresh
 - Cohesive UI design with coral, turquoise, and mango color scheme
 - Fun Gerbil mascot and branded assets throughout the interface
 - Intuitive swap process with visual stage indicators
@@ -34,10 +35,11 @@ Open the browser to http://localhost:5173/ or the port shown in the terminal.
 - Implemented Fun Gerbil branding with cohesive color scheme and assets
 - Added Fun Gerbil mascot and visual elements throughout the UI
 - Created visual swap stage indicators (Create, Fund, Confirm, Complete)
+- Integrated live XMR/USDC price feed using the CoinGecko API
+- Added auto-refreshing price indicator with visual feedback
 - Implemented Monero wallet creation and storage in localStorage
 - Connected to Monero stagenet node for blockchain synchronization
 - Added UI for relayer-based transactions
-- Implemented mock exchange rate calculations
 - Designed responsive layout for various screen sizes
 
 ## Next Steps
@@ -48,10 +50,10 @@ Open the browser to http://localhost:5173/ or the port shown in the terminal.
    - Implement contract calls to the SwapCreator contract
    - Handle transaction signing and confirmation
 
-2. **Dynamic Live Price Feed**
-   - Integrate with cryptocurrency price APIs
-   - Implement real-time price updates
+2. **Enhanced Price Features**
    - Add price charts and historical data
+   - Implement price alerts and notifications
+   - Add support for additional currencies and tokens
 
 3. **Backend Integration**
    - Connect to swapd instances for offer discovery
