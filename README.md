@@ -1,16 +1,20 @@
-# XMR-ETH Atomic Swap Frontend
+# Fun Gerbil XMR-USDC Atomic Swap Frontend
 
 ## Description
 
-This project is a frontend application for the XMR-ETH atomic swap protocol. It provides a user-friendly interface for users to participate in trustless atomic swaps between Monero (XMR) and Ethereum (ETH) or ERC20 tokens.
+This project is a frontend application for the XMR-USDC atomic swap protocol, featuring the Fun Gerbil branding. It provides a user-friendly interface for users to participate in trustless atomic swaps between Monero (XMR) and USDC (an ERC20 token on Ethereum).
 
 ## Features
 
-- Modern swap interface for USDC ↔ XMR exchanges
+- Modern swap interface for USDC ↔ XMR exchanges with Fun Gerbil branding
+- Cohesive UI design with coral, turquoise, and mango color scheme
+- Fun Gerbil mascot and branded assets throughout the interface
+- Intuitive swap process with visual stage indicators
 - Monero wallet creation and management with localStorage persistence
 - Connection to Monero stagenet node
 - Swap direction toggle functionality
 - Relayer option for anonymous funding
+- Responsive design for various screen sizes
 
 ## Running the Application
 
@@ -26,35 +30,40 @@ Open the browser to http://localhost:5173/ or the port shown in the terminal.
 
 ## Current Implementation
 
-- Created a standard swap interface with USDC ↔ XMR direction switching
+- Created a modern swap interface with USDC ↔ XMR direction switching
+- Implemented Fun Gerbil branding with cohesive color scheme and assets
+- Added Fun Gerbil mascot and visual elements throughout the UI
+- Created visual swap stage indicators (Create, Fund, Confirm, Complete)
 - Implemented Monero wallet creation and storage in localStorage
 - Connected to Monero stagenet node for blockchain synchronization
 - Added UI for relayer-based transactions
 - Implemented mock exchange rate calculations
+- Designed responsive layout for various screen sizes
 
 ## Next Steps
 
-1. **Dynamic Live Price Feed**
-   - Integrate with cryptocurrency price APIs
-   - Implement real-time price updates
-   - Add price charts and historical data
-
-2. **Fungerbil Branding**
-   - Update UI with Fungerbil colors, logo, and styling
-   - Implement consistent branding across all components
-   - Add brand-specific UI elements and animations
-
-3. **Ethereum Integration**
+1. **Ethereum Integration**
    - Implement ethers.js for Ethereum wallet connections
    - Add MetaMask integration for wallet management
    - Implement contract calls to the SwapCreator contract
    - Handle transaction signing and confirmation
 
-4. **Backend Integration**
+2. **Dynamic Live Price Feed**
+   - Integrate with cryptocurrency price APIs
+   - Implement real-time price updates
+   - Add price charts and historical data
+
+3. **Backend Integration**
    - Connect to swapd instances for offer discovery
    - Implement swap initiation and monitoring
    - Add transaction status tracking
    - Implement error handling and recovery mechanisms
+
+4. **Enhanced User Experience**
+   - Add swap history and transaction tracking
+   - Implement user settings and preferences
+   - Add dark mode toggle
+   - Improve accessibility features
 
 ## Integration Specification
 
