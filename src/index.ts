@@ -8,7 +8,7 @@ window.monero = moneroTs;
 const STAGENET_NODE = "https://stagenet.xmr.ditatompel.com";
 const STAGENET_NODE_PORT = 38089;
 const CONTRACT_ADDRESS = "0xCa9209fAbc5B1fCF7935F99Ba588776222aB9c4c";
-const USDC_CONTRACT_ADDRESS = "0xda9d4f9b69ac6C22e444eD9aF0CfC043b7a7f53f"; // Sepolia USDC
+const USDC_CONTRACT_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"; // Sepolia USDC
 const SWAPD_RPC_URL = "http://localhost:5000";
 
 // Exchange rate (mock for now)
@@ -26,6 +26,14 @@ interface MoneroWalletKeys {
   getAddress(accountIndex: number, addressIndex: number): Promise<string>;
   getPrivateSpendKey(): Promise<string>;
   getPrivateViewKey(): Promise<string>;
+}
+
+// Global type declarations
+declare global {
+  interface Window {
+    monero: any;
+    moneroWalletAddress: string;
+  }
 }
 
 main();
@@ -97,109 +105,173 @@ async function createNewWallet(): Promise<MoneroWalletKeys> {
 }
 
 async function updateWalletDisplay(walletKeys: MoneroWalletKeys): Promise<void> {
+  // Update wallet info in the hidden section (for development purposes)
   document.getElementById("wallet_address")!.innerHTML = "Address: " + (await walletKeys.getAddress(0, 0));
   document.getElementById("wallet_seed_phrase")!.innerHTML = "Seed phrase: " + (await walletKeys.getSeed());
   document.getElementById("wallet_spend_key")!.innerHTML = "Spend key: " + (await walletKeys.getPrivateSpendKey());
   document.getElementById("wallet_view_key")!.innerHTML = "View key: " + (await walletKeys.getPrivateViewKey());
+  
+  // Store wallet address in a global variable for later use in the swap process
+  window.moneroWalletAddress = await walletKeys.getAddress(0, 0);
 }
 
 function setupSwapInterface(walletKeys: MoneroWalletKeys): void {
   // Get UI elements
   const fromAmount = document.getElementById("from-amount") as HTMLInputElement;
   const toAmount = document.getElementById("to-amount") as HTMLInputElement;
-  const fromCurrency = document.getElementById("from-currency") as HTMLSelectElement;
-  const toCurrency = document.getElementById("to-currency") as HTMLSelectElement;
+  const fromCurrency = document.getElementById("from-currency") as HTMLDivElement;
+  const toCurrency = document.getElementById("to-currency") as HTMLDivElement;
   const swapDirectionBtn = document.getElementById("swap-direction-btn") as HTMLButtonElement;
   const swapButton = document.getElementById("swap-button") as HTMLButtonElement;
   const useRelayer = document.getElementById("use-relayer") as HTMLInputElement;
-  const exchangeRate = document.getElementById("exchange-rate") as HTMLElement;
-  const networkFee = document.getElementById("network-fee") as HTMLElement;
+  const exchangeRateElement = document.getElementById("exchange-rate") as HTMLElement;
+  const networkFeeElement = document.getElementById("network-fee") as HTMLElement;
+  const estimatedTimeElement = document.getElementById("estimated-time") as HTMLElement;
+  const connectWalletBtn = document.querySelector(".connect-wallet") as HTMLButtonElement;
   
-  // Set initial exchange rate
-  updateExchangeRate(fromCurrency.value, toCurrency.value);
+  // Initial values
+  let currentFromCurrency = "usdc";
+  let currentToCurrency = "xmr";
   
-  // Add event listeners
+  // Initial UI setup
+  updateExchangeRate(currentFromCurrency, currentToCurrency);
+  updateNetworkFee();
+  
+  // Event listeners
   fromAmount.addEventListener("input", () => {
     calculateToAmount();
     updateSwapButtonState();
   });
   
-  fromCurrency.addEventListener("change", () => {
-    // Update the to currency to be the opposite
-    toCurrency.value = fromCurrency.value === "usdc" ? "xmr" : "usdc";
-    updateExchangeRate(fromCurrency.value, toCurrency.value);
+  swapDirectionBtn.addEventListener("click", () => {
+    // Swap currencies
+    const tempCurrency = currentFromCurrency;
+    currentFromCurrency = currentToCurrency;
+    currentToCurrency = tempCurrency;
+    
+    // Update UI
+    // The currency selectors are now divs, not select elements
+    fromCurrency.innerHTML = `
+      <img src="./assets/${currentFromCurrency === 'usdc' ? 'usdc.png' : 'monero.png'}" alt="${currentFromCurrency.toUpperCase()} icon" class="currency-icon" />
+      ${currentFromCurrency.toUpperCase()}
+    `;
+    
+    toCurrency.innerHTML = `
+      <img src="./assets/${currentToCurrency === 'usdc' ? 'usdc.png' : 'monero.png'}" alt="${currentToCurrency.toUpperCase()} icon" class="currency-icon" />
+      ${currentToCurrency.toUpperCase()}
+    `;
+    
+    // Recalculate amounts
     calculateToAmount();
+    updateExchangeRate(currentFromCurrency, currentToCurrency);
     updateNetworkFee();
   });
   
-  swapDirectionBtn.addEventListener("click", () => {
-    // Swap the currencies
-    const tempCurrency = fromCurrency.value;
-    fromCurrency.value = toCurrency.value;
-    toCurrency.value = tempCurrency;
-    
-    // Clear the amounts
-    fromAmount.value = "";
-    toAmount.value = "";
-    
-    // Update the exchange rate
-    updateExchangeRate(fromCurrency.value, toCurrency.value);
+  // Since we're now using divs instead of select elements, we don't need the change event
+  // The swap direction button handles the currency switching
+  
+  // Make sure we calculate the initial values
+  calculateToAmount();
+  updateExchangeRate(currentFromCurrency, currentToCurrency);
+  updateNetworkFee();
+  
+  // Add event listener for the use relayer checkbox
+  useRelayer.addEventListener("change", () => {
     updateNetworkFee();
-    updateSwapButtonState();
+  });
+  
+  // Connect wallet button event listener
+  connectWalletBtn.addEventListener("click", async () => {
+    // Placeholder for wallet connection logic
+    alert("Ethereum wallet connection will be implemented in a future update.");
+    connectWalletBtn.textContent = "Wallet Connected";
+    connectWalletBtn.disabled = true;
+    swapButton.disabled = false;
   });
   
   useRelayer.addEventListener("change", () => {
     updateNetworkFee();
   });
   
+  // Connect wallet button
+  connectWalletBtn.addEventListener("click", async () => {
+    try {
+      // For now, just show the wallet is connected
+      connectWalletBtn.textContent = "Wallet Connected";
+      connectWalletBtn.style.backgroundColor = "#4caf50";
+      
+      // Enable the swap button
+      updateSwapButtonState();
+      
+      // In the future, this would connect to MetaMask for Ethereum wallet
+      // For now, we're just using the Monero wallet we already created
+    } catch (error) {
+      console.error("Error connecting wallet:", error);
+    }
+  });
+  
+  // Swap button
   swapButton.addEventListener("click", () => {
-    // This would be replaced with actual swap logic
-    alert("Swap functionality will be implemented in the next phase.");
+    if (swapButton.disabled) return;
+    
+    // Show a simple alert for now
+    alert(`Creating ${currentFromCurrency.toUpperCase()} to ${currentToCurrency.toUpperCase()} swap for ${fromAmount.value} ${currentFromCurrency.toUpperCase()}`);
+    
+    // In the future, this would initiate the actual swap process
   });
   
   // Helper functions
   function calculateToAmount(): void {
-    const amount = parseFloat(fromAmount.value) || 0;
-    let calculatedAmount = 0;
+    const fromValue = parseFloat(fromAmount.value) || 0;
+    let toValue = 0;
     
-    if (fromCurrency.value === "usdc" && toCurrency.value === "xmr") {
-      calculatedAmount = amount / XMR_TO_USDC_RATE;
-    } else if (fromCurrency.value === "xmr" && toCurrency.value === "usdc") {
-      calculatedAmount = amount * XMR_TO_USDC_RATE;
+    if (currentFromCurrency === "usdc" && currentToCurrency === "xmr") {
+      // USDC to XMR
+      toValue = fromValue / XMR_TO_USDC_RATE;
+    } else if (currentFromCurrency === "xmr" && currentToCurrency === "usdc") {
+      // XMR to USDC
+      toValue = fromValue * XMR_TO_USDC_RATE;
     }
     
-    toAmount.value = calculatedAmount.toFixed(6);
+    // Update to amount with 6 decimal precision
+    toAmount.value = toValue.toFixed(6);
   }
   
   function updateExchangeRate(from: string, to: string): void {
     if (from === "usdc" && to === "xmr") {
-      exchangeRate.textContent = `1 USDC = ${(1 / XMR_TO_USDC_RATE).toFixed(6)} XMR`;
-    } else if (from === "xmr" && to === "usdc") {
-      exchangeRate.textContent = `1 XMR = ${XMR_TO_USDC_RATE.toFixed(2)} USDC`;
+      exchangeRateElement.textContent = `1 USDC = ${(1 / XMR_TO_USDC_RATE).toFixed(6)} XMR`;
+    } else {
+      exchangeRateElement.textContent = `1 XMR = ${XMR_TO_USDC_RATE.toFixed(2)} USDC`;
     }
   }
   
   function updateNetworkFee(): void {
-    const relayerFee = useRelayer.checked ? 0.01 : 0;
-    const baseFee = fromCurrency.value === "usdc" ? 0.005 : 0.001;
-    const totalFee = baseFee + relayerFee;
+    // Mock network fee calculation
+    const baseNetworkFee = 0.001; // Base fee in USDC
+    const relayerFee = useRelayer.checked ? 0.005 : 0; // Additional fee for using relayer
+    const totalFee = baseNetworkFee + relayerFee;
     
-    networkFee.textContent = `${totalFee.toFixed(6)} ${fromCurrency.value.toUpperCase()}`;
+    networkFeeElement.textContent = `${totalFee.toFixed(4)} ${currentFromCurrency.toUpperCase()}`;
   }
   
   function updateSwapButtonState(): void {
-    const amount = parseFloat(fromAmount.value) || 0;
-    swapButton.disabled = amount <= 0;
+    const fromValue = parseFloat(fromAmount.value) || 0;
     
-    if (amount <= 0) {
-      swapButton.textContent = "Enter an amount";
+    if (fromValue > 0) {
+      swapButton.disabled = false;
     } else {
-      swapButton.textContent = "Connect Wallet to Swap";
+      swapButton.disabled = true;
     }
   }
   
-  // Initialize
-  updateNetworkFee();
+  // Add bouncing animation to the gerbil
+  const gerbilBounce = document.querySelector(".gerbil-bounce") as HTMLElement;
+  if (gerbilBounce) {
+    gerbilBounce.innerHTML = "🐹";
+  }
+  
+  // Initial calculation
+  calculateToAmount();
   updateSwapButtonState();
 }
 
@@ -247,7 +319,7 @@ function updateConnectionStatus(connected: boolean, message: string): void {
   }
   
   if (!document.getElementById('connection_status')) {
-    const container = document.querySelector('.container');
+    const container = document.querySelector('.main-container');
     if (container) {
       container.appendChild(statusElement);
     } else {
