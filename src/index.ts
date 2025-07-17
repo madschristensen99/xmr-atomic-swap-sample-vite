@@ -11,8 +11,98 @@ const CONTRACT_ADDRESS = "0xCa9209fAbc5B1fCF7935F99Ba588776222aB9c4c";
 const USDC_CONTRACT_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"; // Sepolia USDC
 const SWAPD_RPC_URL = "http://localhost:5000";
 
-// Exchange rate (mock for now)
-const XMR_TO_USDC_RATE = 150; // 1 XMR = 150 USDC
+// Exchange rate - will be updated from API
+let XMR_TO_USDC_RATE = 150; // Default fallback value
+
+// CoinGecko API endpoints
+const COINGECKO_API_BASE = "https://api.coingecko.com/api/v3";
+const PRICE_ENDPOINT = `${COINGECKO_API_BASE}/simple/price?ids=monero&vs_currencies=usd&include_24hr_change=true`;
+
+// Function to fetch current XMR price
+async function fetchXmrPrice(): Promise<number | null> {
+  try {
+    const response = await fetch(PRICE_ENDPOINT);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    
+    // CoinGecko returns price in USD, which we can use as USDC (approximately 1:1)
+    const xmrUsdPrice = data.monero.usd;
+    console.log(`Fetched XMR price: $${xmrUsdPrice} USD`);
+    
+    return xmrUsdPrice;
+  } catch (error) {
+    console.error("Failed to fetch XMR price:", error);
+    return null;
+  }
+}
+
+// Function to update price periodically
+function startPriceUpdates(intervalMs = 60000) { // Default: update every minute
+  // Initial fetch
+  updateLivePrice();
+  
+  // Set interval for updates
+  setInterval(updateLivePrice, intervalMs);
+}
+
+// Function to show the price is updating
+function showPriceUpdating(isUpdating: boolean) {
+  const indicator = document.getElementById('price-indicator');
+  if (indicator) {
+    if (isUpdating) {
+      indicator.classList.add('updating');
+    } else {
+      indicator.classList.remove('updating');
+    }
+  }
+}
+
+// Update price and UI
+async function updateLivePrice() {
+  try {
+    // Show updating indicator
+    showPriceUpdating(true);
+    
+    const price = await fetchXmrPrice();
+    if (price !== null) {
+      XMR_TO_USDC_RATE = price;
+      
+      // Update UI if elements exist
+      const exchangeRateElement = document.getElementById("exchange-rate");
+      if (exchangeRateElement) {
+        // Update the exchange rate display with live data
+        const fromCurrencyElement = document.getElementById("from-currency");
+        const toCurrencyElement = document.getElementById("to-currency");
+        
+        if (fromCurrencyElement && toCurrencyElement) {
+          const fromCurrency = fromCurrencyElement.textContent?.trim().toLowerCase().includes("usdc") ? "usdc" : "xmr";
+          const toCurrency = toCurrencyElement.textContent?.trim().toLowerCase().includes("usdc") ? "usdc" : "xmr";
+          
+          if (fromCurrency === "usdc" && toCurrency === "xmr") {
+            exchangeRateElement.textContent = `1 USDC ≈ ${(1 / XMR_TO_USDC_RATE).toFixed(6)} XMR`;
+          } else {
+            exchangeRateElement.textContent = `1 XMR ≈ ${XMR_TO_USDC_RATE.toFixed(2)} USDC`;
+          }
+        }
+      }
+      
+      // Recalculate amounts if needed
+      const fromAmount = document.getElementById("from-amount") as HTMLInputElement;
+      if (fromAmount && fromAmount.value) {
+        // We'll recalculate in the main function context where calculateToAmount is defined
+        const event = new Event('input', { bubbles: true });
+        fromAmount.dispatchEvent(event);
+      }
+    }
+  } catch (error) {
+    console.error("Error updating price:", error);
+  } finally {
+    // Hide updating indicator when done (whether successful or not)
+    showPriceUpdating(false);
+  }
+}
 
 // Types
 interface WalletData {
@@ -170,6 +260,9 @@ function setupSwapInterface(walletKeys: MoneroWalletKeys): void {
   // Since we're now using divs instead of select elements, we don't need the change event
   // The swap direction button handles the currency switching
   
+  // Start live price updates (every 30 seconds)
+  startPriceUpdates(30000);
+  
   // Make sure we calculate the initial values
   calculateToAmount();
   updateExchangeRate(currentFromCurrency, currentToCurrency);
@@ -239,9 +332,9 @@ function setupSwapInterface(walletKeys: MoneroWalletKeys): void {
   
   function updateExchangeRate(from: string, to: string): void {
     if (from === "usdc" && to === "xmr") {
-      exchangeRateElement.textContent = `1 USDC = ${(1 / XMR_TO_USDC_RATE).toFixed(6)} XMR`;
+      exchangeRateElement.textContent = `1 USDC ≈ ${(1 / XMR_TO_USDC_RATE).toFixed(6)} XMR`;  
     } else {
-      exchangeRateElement.textContent = `1 XMR = ${XMR_TO_USDC_RATE.toFixed(2)} USDC`;
+      exchangeRateElement.textContent = `1 XMR ≈ ${XMR_TO_USDC_RATE.toFixed(2)} USDC`;
     }
   }
   
