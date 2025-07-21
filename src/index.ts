@@ -1,5 +1,8 @@
 import assert from "assert";
 import moneroTs from "monero-ts";
+import { connectWallet, disconnectWallet, getCurrentAccount, isWalletConnected, getProvider } from "./auth";
+import { ethers } from "ethers";
+import { createSwap, generateSecret, getSwapDetails, claimSwap, refundSwap } from "./contract";
 
 // @ts-ignore
 window.monero = moneroTs;
@@ -213,7 +216,6 @@ function setupSwapInterface(walletKeys: MoneroWalletKeys): void {
   const toCurrency = document.getElementById("to-currency") as HTMLDivElement;
   const swapDirectionBtn = document.getElementById("swap-direction-btn") as HTMLButtonElement;
   const swapButton = document.getElementById("swap-button") as HTMLButtonElement;
-  const useRelayer = document.getElementById("use-relayer") as HTMLInputElement;
   const exchangeRateElement = document.getElementById("exchange-rate") as HTMLElement;
   const networkFeeElement = document.getElementById("network-fee") as HTMLElement;
   const estimatedTimeElement = document.getElementById("estimated-time") as HTMLElement;
@@ -222,12 +224,90 @@ function setupSwapInterface(walletKeys: MoneroWalletKeys): void {
   // Initial values
   let currentFromCurrency = "usdc";
   let currentToCurrency = "xmr";
+  let ethereumAddress: string | null = null;
+  
+  // Relayer usage will be determined automatically based on wallet balance
+  let useRelayer = true; // Default to using relayer
+  
+  // Function to check wallet balance and determine if relayer should be used
+  async function checkWalletBalanceForRelayer(): Promise<void> {
+    if (!ethereumAddress) return;
+    
+    try {
+      const provider = getProvider();
+      if (!provider) return;
+      
+      const balance = await provider.getBalance(ethereumAddress);
+      const balanceInEth = ethers.formatEther(balance);
+      
+      // If balance is zero, use relayer, otherwise don't use relayer
+      useRelayer = balance === 0n;
+      
+      console.log(`Wallet balance: ${balanceInEth} ETH`);
+      console.log(`Using relayer: ${useRelayer ? 'Yes' : 'No'} (determined by wallet balance)`);
+      
+      // Update network fee based on relayer usage
+      updateNetworkFee();
+    } catch (error) {
+      console.error("Error checking wallet balance:", error);
+    }
+  }
   
   // Initial UI setup
   updateExchangeRate(currentFromCurrency, currentToCurrency);
   updateNetworkFee();
   
   // Event listeners
+  connectWalletBtn.addEventListener("click", async () => {
+    console.log("Connect wallet button clicked");
+    try {
+      // Show loading state
+      connectWalletBtn.textContent = "Connecting...";
+      connectWalletBtn.disabled = true;
+      
+      // Connect wallet
+      ethereumAddress = await connectWallet();
+      
+      if (ethereumAddress) {
+        console.log("Wallet connected:", ethereumAddress);
+        // Update button text to show connected address
+        connectWalletBtn.textContent = `${ethereumAddress.substring(0, 6)}...${ethereumAddress.substring(ethereumAddress.length - 4)}`;
+        
+        // Check wallet balance to determine if relayer should be used
+        await checkWalletBalanceForRelayer();
+        
+        // Enable swap button if amount is valid
+        updateSwapButtonState();
+      } else {
+        console.error("Failed to connect wallet");
+        connectWalletBtn.textContent = "Connect Wallet";
+      }
+    } catch (error) {
+      console.error("Error connecting wallet:", error);
+      connectWalletBtn.textContent = "Connect Wallet";
+    } finally {
+      connectWalletBtn.disabled = false;
+    }
+  });
+  
+  // Listen for wallet account changes
+  window.addEventListener("walletAccountChanged", async (event: any) => {
+    const newAccount = event.detail;
+    console.log("Wallet account changed:", newAccount);
+    ethereumAddress = newAccount;
+    
+    if (newAccount) {
+      connectWalletBtn.textContent = `${newAccount.substring(0, 6)}...${newAccount.substring(newAccount.length - 4)}`;
+      // Check wallet balance to determine if relayer should be used
+      await checkWalletBalanceForRelayer();
+    } else {
+      connectWalletBtn.textContent = "Connect Wallet";
+    }
+    
+    // Update swap button state
+    updateSwapButtonState();
+  });
+  
   fromAmount.addEventListener("input", () => {
     calculateToAmount();
     updateSwapButtonState();
@@ -268,49 +348,79 @@ function setupSwapInterface(walletKeys: MoneroWalletKeys): void {
   updateExchangeRate(currentFromCurrency, currentToCurrency);
   updateNetworkFee();
   
-  // Add event listener for the use relayer checkbox
-  useRelayer.addEventListener("change", () => {
-    updateNetworkFee();
-  });
-  
-  // Connect wallet button event listener
-  connectWalletBtn.addEventListener("click", async () => {
-    // Placeholder for wallet connection logic
-    alert("Ethereum wallet connection will be implemented in a future update.");
-    connectWalletBtn.textContent = "Wallet Connected";
-    connectWalletBtn.disabled = true;
-    swapButton.disabled = false;
-  });
-  
-  useRelayer.addEventListener("change", () => {
-    updateNetworkFee();
-  });
-  
-  // Connect wallet button
-  connectWalletBtn.addEventListener("click", async () => {
-    try {
-      // For now, just show the wallet is connected
-      connectWalletBtn.textContent = "Wallet Connected";
-      connectWalletBtn.style.backgroundColor = "#4caf50";
-      
-      // Enable the swap button
-      updateSwapButtonState();
-      
-      // In the future, this would connect to MetaMask for Ethereum wallet
-      // For now, we're just using the Monero wallet we already created
-    } catch (error) {
-      console.error("Error connecting wallet:", error);
-    }
+  // Listen for wallet chain changes
+  window.addEventListener("walletChainChanged", (event: any) => {
+    console.log("Wallet chain changed:", event.detail);
+    // Reload the page as recommended by MetaMask
+    window.location.reload();
   });
   
   // Swap button
-  swapButton.addEventListener("click", () => {
+  swapButton.addEventListener("click", async () => {
     if (swapButton.disabled) return;
     
-    // Show a simple alert for now
-    alert(`Creating ${currentFromCurrency.toUpperCase()} to ${currentToCurrency.toUpperCase()} swap for ${fromAmount.value} ${currentFromCurrency.toUpperCase()}`);
-    
-    // In the future, this would initiate the actual swap process
+    try {
+      // Show loading state
+      const originalText = swapButton.textContent;
+      swapButton.textContent = "Creating swap...";
+      swapButton.disabled = true;
+      
+      // Get the amount to swap
+      const amount = parseFloat(fromAmount.value);
+      if (isNaN(amount) || amount <= 0) {
+        throw new Error("Please enter a valid amount");
+      }
+      
+      // Get the receiver address for XMR
+      const receiverAddress = document.getElementById("receiver-address") as HTMLInputElement;
+      if (!receiverAddress.value) {
+        throw new Error("Please enter a valid XMR wallet address");
+      }
+      
+      // Generate a secret for the swap
+      const { secret, secretHash } = generateSecret();
+      console.log("Generated secret:", secret);
+      console.log("Secret hash:", secretHash);
+      
+      // Get the signer
+      const provider = getProvider();
+      if (!provider) {
+        throw new Error("No provider available");
+      }
+      const signer = await provider.getSigner();
+      
+      // Create the swap
+      // Use a 24-hour timelock by default (in seconds)
+      const timelock = 24 * 60 * 60;
+      const swapId = await createSwap(signer, amount, secretHash, timelock);
+      
+      // Show success message with swap details
+      const successMessage = `
+        Swap created successfully!\n\n
+        Swap ID: ${swapId}\n
+        Amount: ${amount} USDC\n
+        Secret: ${secret}\n
+        Secret Hash: ${secretHash}\n\n
+        IMPORTANT: Save this information! You will need the secret to claim your XMR.
+      `;
+      
+      alert(successMessage);
+      
+      // Reset the form
+      fromAmount.value = "";
+      toAmount.value = "";
+      receiverAddress.value = "";
+      
+      // Update button state
+      updateSwapButtonState();
+    } catch (error: any) {
+      console.error("Error creating swap:", error);
+      alert(`Error creating swap: ${error.message || error}`);
+    } finally {
+      // Reset button state
+      swapButton.textContent = "Create Swap";
+      swapButton.disabled = false;
+    }
   });
   
   // Helper functions
@@ -339,21 +449,31 @@ function setupSwapInterface(walletKeys: MoneroWalletKeys): void {
   }
   
   function updateNetworkFee(): void {
-    // Mock network fee calculation
-    const baseNetworkFee = 0.001; // Base fee in USDC
-    const relayerFee = useRelayer.checked ? 0.005 : 0; // Additional fee for using relayer
-    const totalFee = baseNetworkFee + relayerFee;
+    // Determine fee based on relayer usage
+    const fee = useRelayer ? 0.5 : 2.0; // Lower fee with relayer
+    const time = useRelayer ? "5-15 minutes" : "30-60 minutes";
     
-    networkFeeElement.textContent = `${totalFee.toFixed(4)} ${currentFromCurrency.toUpperCase()}`;
+    networkFeeElement.textContent = `${fee} USDC`;
+    estimatedTimeElement.textContent = time;
   }
   
   function updateSwapButtonState(): void {
     const fromValue = parseFloat(fromAmount.value) || 0;
+    const walletConnected = ethereumAddress !== null;
     
-    if (fromValue > 0) {
+    if (fromValue > 0 && walletConnected) {
       swapButton.disabled = false;
     } else {
       swapButton.disabled = true;
+    }
+    
+    // Update swap button text based on wallet connection
+    if (!walletConnected) {
+      swapButton.textContent = "Connect wallet first";
+    } else if (fromValue <= 0) {
+      swapButton.textContent = "Enter amount";
+    } else {
+      swapButton.textContent = "Swap";
     }
   }
   
